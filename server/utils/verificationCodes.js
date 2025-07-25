@@ -1,37 +1,64 @@
-const verificationCodes = new Map();
+const Verification = require("../models/Verification");
 
 const generateVerificationCode = () => {
   return Math.floor(100000 + Math.random() * 900000).toString();
 };
 
-const storeVerificationCode = (email, code) => {
-  const expiry = Date.now() + 60000; // 1 minute expiry
-  verificationCodes.set(email, { code, expiry });
+const createVerificationRecord = async (email, type) => {
+  // Clean up any existing records first
+  await Verification.deleteMany({ email, type });
+
+  const code = generateVerificationCode();
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
+  const record = await Verification.create({
+    email,
+    code,
+    type,
+    expiresAt,
+  });
+
+  console.log(`Created verification record for ${email}:`, record);
+  return code;
 };
 
-const getVerificationCode = (email) => {
-  return verificationCodes.get(email);
-};
+const verifyCode = async (email, code, type) => {
+  console.log(`Verifying code for ${email}, code: ${code}, type: ${type}`);
 
-const deleteVerificationCode = (email) => {
-  verificationCodes.delete(email);
-};
+  const record = await Verification.findOne({
+    email,
+    code,
+    type,
+    expiresAt: { $gt: new Date() },
+  });
 
-const cleanExpiredCodes = () => {
-  const now = Date.now();
-  for (const [email, { expiry }] of verificationCodes.entries()) {
-    if (now > expiry) {
-      verificationCodes.delete(email);
+  if (!record) {
+    console.log("Verification failed - no matching record found");
+    const expiredRecord = await Verification.findOne({ email, code, type });
+    if (expiredRecord) {
+      console.log("Found expired record:", expiredRecord);
     }
+    throw new Error("Invalid or expired verification code");
   }
+
+  console.log("Verification successful:", record);
+  await Verification.findByIdAndUpdate(record._id, {
+    $inc: { attempts: 1 },
+  });
+
+  return true;
 };
 
-// Clean expired codes every 5 minutes
-setInterval(cleanExpiredCodes, 300000);
+const cleanupExpiredVerifications = async () => {
+  const result = await Verification.deleteMany({
+    expiresAt: { $lt: new Date() },
+  });
+  console.log(`Cleaned up ${result.deletedCount} expired verification records`);
+};
 
 module.exports = {
   generateVerificationCode,
-  storeVerificationCode,
-  getVerificationCode,
-  deleteVerificationCode,
+  createVerificationRecord,
+  verifyCode,
+  cleanupExpiredVerifications,
 };

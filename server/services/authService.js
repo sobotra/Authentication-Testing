@@ -1,12 +1,10 @@
 const User = require("../models/User");
+const Verification = require("../models/Verification"); // Add this line
 const {
   generateAccessToken,
   generateRefreshToken,
 } = require("../utils/tokenUtils");
-const {
-  getVerificationCode,
-  deleteVerificationCode,
-} = require("../utils/verificationCodes");
+const verificationCodes = require("../utils/verificationCodes"); // Updated this line
 const {
   sendVerificationEmail,
   sendPasswordResetEmail,
@@ -48,9 +46,12 @@ const registerUser = async (userData) => {
 };
 
 const verifyEmail = async (email, code) => {
-  const storedCode = getVerificationCode(email);
-
-  if (!storedCode || storedCode.code !== code) {
+  const isValid = await verificationCodes.verifyCode(
+    email,
+    code,
+    "email_verification"
+  );
+  if (!isValid) {
     throw new Error("Invalid or expired verification code");
   }
 
@@ -63,8 +64,6 @@ const verifyEmail = async (email, code) => {
   if (!user) {
     throw new Error("User not found or already verified");
   }
-
-  deleteVerificationCode(email);
 
   // Generate tokens for immediate login after verification
   const accessToken = generateAccessToken(user._id, user.role);
@@ -113,14 +112,20 @@ const loginUser = async (email, password) => {
 
 const requestPasswordReset = async (email) => {
   const user = await User.findOne({ email, isVerified: true });
-
   if (!user) {
     throw new Error("No verified user found with this email");
   }
 
-  await sendPasswordResetEmail(email);
+  const code = await verificationCodes.createVerificationRecord(
+    email,
+    "password_reset"
+  );
 
-  return { message: "Password reset email sent. Please check your email." };
+  await sendPasswordResetEmail(email, code);
+
+  return {
+    message: "Password reset email sent",
+  };
 };
 
 const resetPassword = async (email, code, newPassword, confirmPassword) => {
@@ -128,11 +133,7 @@ const resetPassword = async (email, code, newPassword, confirmPassword) => {
     throw new Error("Passwords do not match");
   }
 
-  const storedCode = getVerificationCode(email);
-
-  if (!storedCode || storedCode.code !== code) {
-    throw new Error("Invalid or expired verification code");
-  }
+  await verificationCodes.verifyCode(email, code, "password_reset");
 
   const user = await User.findOne({ email });
   if (!user) {
@@ -142,12 +143,7 @@ const resetPassword = async (email, code, newPassword, confirmPassword) => {
   user.password = newPassword;
   await user.save();
 
-  deleteVerificationCode(email);
-
-  return {
-    message:
-      "Password updated successfully. You can now login with your new password.",
-  };
+  return { message: "Password updated successfully" };
 };
 
 const refreshAccessToken = async (refreshToken) => {

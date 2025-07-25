@@ -1,13 +1,12 @@
-const { sendEmail } = require("../config/email");
 const {
   generateVerificationCode,
-  storeVerificationCode,
-  deleteVerificationCode,
+  createVerificationRecord,
 } = require("../utils/verificationCodes");
+const { sendEmail } = require("../config/email");
+const verificationCodes = require("../utils/verificationCodes");
 
 const sendVerificationEmail = async (email) => {
-  const code = generateVerificationCode();
-  storeVerificationCode(email, code);
+  const code = await createVerificationRecord(email, "email_verification");
 
   const subject = "Verify Your Email - KIT Japanese Club";
   const html = `
@@ -19,7 +18,7 @@ const sendVerificationEmail = async (email) => {
           font-weight: bold; text-align: center; margin: 20px 0; color: #2c3e50;">
         ${code}
       </div>
-      <p>This code will expire in 1 minute.</p>
+      <p>This code will expire in 5 minutes.</p>
       <p>If you didn't request this, please ignore this email.</p>
       <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
       <p style="font-size: 12px; color: #7f8c8d;">KIT Japanese Club Team</p>
@@ -30,8 +29,10 @@ const sendVerificationEmail = async (email) => {
 };
 
 const sendPasswordResetEmail = async (email) => {
-  const code = generateVerificationCode();
-  storeVerificationCode(email, code);
+  const code = await verificationCodes.createVerificationRecord(
+    email,
+    "password_reset"
+  );
 
   const subject = "Password Reset Request - KIT Japanese Club";
   const html = `
@@ -43,7 +44,7 @@ const sendPasswordResetEmail = async (email) => {
           font-weight: bold; text-align: center; margin: 20px 0; color: #2c3e50;">
         ${code}
       </div>
-      <p>This code will expire in 1 minute.</p>
+      <p>This code will expire in 5 minutes.</p>
       <p>If you didn't request a password reset, please ignore this email.</p>
       <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
       <p style="font-size: 12px; color: #7f8c8d;">KIT Japanese Club Team</p>
