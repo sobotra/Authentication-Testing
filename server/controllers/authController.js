@@ -1,5 +1,5 @@
 const authService = require("../services/authService");
-
+const User = require("../models/User");
 const register = async (req, res, next) => {
   try {
     const result = await authService.registerUser(req.body);
@@ -56,6 +56,24 @@ const resetPassword = async (req, res, next) => {
     );
     res.status(200).json(result);
   } catch (error) {
+    if (error.message === "Invalid or expired verification code") {
+      return res.status(400).json({
+        error: "InvalidCode",
+        message: "The verification code is invalid or has expired",
+      });
+    }
+    if (error.message === "Passwords do not match") {
+      return res.status(400).json({
+        error: "PasswordMismatch",
+        message: "New password and confirmation password do not match",
+      });
+    }
+    if (error.message === "User not found") {
+      return res.status(404).json({
+        error: "UserNotFound",
+        message: "No user found with this email address",
+      });
+    }
     next(error);
   }
 };
