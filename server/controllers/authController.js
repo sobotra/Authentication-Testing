@@ -88,9 +88,14 @@ const refreshToken = async (req, res, next) => {
   }
 };
 
+
+
 const logout = async (req, res, next) => {
-  try {
-    // In a real implementation, you might want to blacklist the refresh token
+   try {
+    // Clear cookies
+    res.clearCookie('accessToken');
+    res.clearCookie('refreshToken');
+
     res.status(200).json({ message: "Logged out successfully" });
   } catch (error) {
     next(error);
